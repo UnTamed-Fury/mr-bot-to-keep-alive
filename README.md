@@ -37,6 +37,18 @@ The username and Minecraft version are configured in the code with these default
 - Username: Mr_alive
 - Minecraft Version: 1.21.1
 
+## Known Limitations
+
+**Important Note**: Many Minecraft hosting providers (especially free services) block connections from cloud services like GitHub Actions. If your server returns `ECONNREFUSED` consistently, it's likely that your hosting provider is blocking connections from GitHub's IP ranges.
+
+## Alternative Deployment Options
+
+If the GitHub Actions workflow doesn't work due to IP blocking, consider these alternatives:
+
+1. **Run locally on a computer that stays on** (like a home server or Raspberry Pi)
+2. **Deploy to a cloud VPS** with a different IP reputation
+3. **Use a different CI/CD service** that may have different IP ranges
+
 ## Logs
 
 All bot activity is logged to the `logs/` directory and uploaded as artifacts after each run.

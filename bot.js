@@ -145,23 +145,28 @@ function createOfflineEmbed(serverHost, serverPort) {
 function testServerReachable(host, port) {
   return new Promise((resolve) => {
     const socket = new net.Socket();
-    
+
     socket.setTimeout(10000); // 10 second timeout
-    
-    socket.connect(port, host, () => {
+
+    socket.on('connect', () => {
+      log(`Successfully connected to ${host}:${port}`, 'INFO');
       socket.end();
       resolve(true);
     });
-    
-    socket.on('error', () => {
+
+    socket.on('error', (err) => {
+      log(`Connection error to ${host}:${port}: ${err.message}`, 'ERROR');
       socket.destroy();
       resolve(false);
     });
-    
+
     socket.on('timeout', () => {
+      log(`Connection timeout to ${host}:${port}`, 'ERROR');
       socket.destroy();
       resolve(false);
     });
+
+    socket.connect(port, host);
   });
 }
 

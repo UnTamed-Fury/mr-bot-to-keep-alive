@@ -203,7 +203,9 @@ testServerReachable(config.host, config.port).then(isReachable => {
     // Additional options to improve connection reliability
     timeout: 30000, // 30 second timeout
     // Enable verbose logging for connection issues
-    hideErrors: false
+    hideErrors: false,
+    // Additional connection options that might help with firewall issues
+    skipValidation: true
   };
 
   log(`Attempting to connect with options: host=${config.host}, port=${config.port}, username=${config.username}`, 'DEBUG');

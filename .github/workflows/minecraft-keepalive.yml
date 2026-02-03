@@ -1,0 +1,40 @@
+name: Minecraft Keepalive Bot
+
+on:
+  schedule:
+    # Run every 4 minutes
+    - cron: '*/4 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Run Minecraft bot for 1 minute
+      run: |
+        timeout 65 npm start
+      env:
+        MINECRAFT_HOST: ${{ secrets.MINECRAFT_HOST }}
+        MINECRAFT_PORT: ${{ secrets.MINECRAFT_PORT }}
+        MINECRAFT_USERNAME: ${{ secrets.MINECRAFT_USERNAME }}
+        MINECRAFT_VERSION: ${{ secrets.MINECRAFT_VERSION }}
+
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: bot-logs-${{ github.run_number }}
+        path: logs/
+        retention-days: 7

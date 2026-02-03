@@ -1,0 +1,26 @@
+{
+  "name": "mr-bot-to-keep-alive",
+  "version": "1.0.0",
+  "description": "A Minecraft bot to keep servers alive by connecting periodically",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "minecraft",
+    "bot",
+    "keepalive",
+    "aternos",
+    "server"
+  ],
+  "author": "UnTamed-Fury",
+  "license": "MIT",
+  "dependencies": {
+    "mineflayer": "^4.20.0",
+    "prismarine-viewer": "^1.24.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

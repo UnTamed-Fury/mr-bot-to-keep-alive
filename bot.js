@@ -1,7 +1,8 @@
 const mineflayer = require('mineflayer');
 const fs = require('fs');
 const path = require('path');
-const { fetch } = require('undici');
+const https = require('https');
+const { URL } = require('url');
 
 // Configuration
 const config = {
@@ -29,30 +30,57 @@ function log(message, level = 'INFO') {
 }
 
 // Function to send Discord webhook
-async function sendWebhook(embed) {
-  try {
-    // Prepare the payload
-    const payload = {
-      embeds: [embed]
-    };
+function sendWebhook(embed) {
+  return new Promise((resolve, reject) => {
+    try {
+      // Prepare the payload
+      const payload = {
+        embeds: [embed]
+      };
 
-    // Send the webhook using fetch
-    const response = await fetch(config.webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+      const webhookUrl = new URL(config.webhookUrl);
 
-    if (!response.ok) {
-      log(`Failed to send Discord webhook: ${response.status} ${response.statusText}`, 'ERROR');
-    } else {
-      log('Discord webhook sent successfully', 'INFO');
+      const options = {
+        hostname: webhookUrl.hostname,
+        port: 443,
+        path: webhookUrl.pathname + webhookUrl.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'DiscordBot (keepalive, 1.0)'
+        }
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            log('Discord webhook sent successfully', 'INFO');
+            resolve({ ok: true, status: res.statusCode });
+          } else {
+            log(`Failed to send Discord webhook: ${res.statusCode} ${res.statusMessage}`, 'ERROR');
+            resolve({ ok: false, status: res.statusCode, statusText: res.statusMessage });
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        log(`Error sending Discord webhook: ${error.message}`, 'ERROR');
+        reject(error);
+      });
+
+      req.write(JSON.stringify(payload));
+      req.end();
+    } catch (error) {
+      log(`Error sending Discord webhook: ${error.message}`, 'ERROR');
+      reject(error);
     }
-  } catch (error) {
-    log(`Error sending Discord webhook: ${error.message}`, 'ERROR');
-  }
+  });
 }
 
 // Function to create embed for joining
@@ -124,7 +152,9 @@ bot.on('spawn', () => {
   log('Bot spawned successfully', 'SUCCESS');
 
   // Send join notification to Discord
-  sendWebhook(createJoinEmbed(config.username));
+  sendWebhook(createJoinEmbed(config.username)).catch(err => {
+    log(`Error sending join webhook: ${err.message}`, 'ERROR');
+  });
 
   // Move the bot slightly to appear active
   bot.setControlState('forward', true);
@@ -140,17 +170,23 @@ bot.on('chat', (username, message) => {
 
 bot.on('playerJoined', (player) => {
   log(`${player.username} joined the game`, 'INFO');
-  sendWebhook(createJoinEmbed(player.username));
+  sendWebhook(createJoinEmbed(player.username)).catch(err => {
+    log(`Error sending join webhook: ${err.message}`, 'ERROR');
+  });
 });
 
 bot.on('playerLeft', (player) => {
   log(`${player.username} left the game`, 'INFO');
-  sendWebhook(createLeaveEmbed(player.username));
+  sendWebhook(createLeaveEmbed(player.username)).catch(err => {
+    log(`Error sending leave webhook: ${err.message}`, 'ERROR');
+  });
 });
 
 bot.on('death', () => {
   log(`${config.username} died`, 'WARNING');
-  sendWebhook(createDeathEmbed(config.username));
+  sendWebhook(createDeathEmbed(config.username)).catch(err => {
+    log(`Error sending death webhook: ${err.message}`, 'ERROR');
+  });
 });
 
 bot.on('error', (err) => {
@@ -160,13 +196,17 @@ bot.on('error', (err) => {
 bot.on('end', (reason) => {
   log(`Bot disconnected: ${reason}`, 'INFO');
   // Send server offline notification to Discord
-  sendWebhook(createOfflineEmbed(config.host, config.port));
+  sendWebhook(createOfflineEmbed(config.host, config.port)).catch(err => {
+    log(`Error sending offline webhook: ${err.message}`, 'ERROR');
+  });
 });
 
 bot.on('kicked', (reason) => {
   log(`Bot kicked: ${reason}`, 'WARNING');
   // Send server offline notification to Discord
-  sendWebhook(createOfflineEmbed(config.host, config.port));
+  sendWebhook(createOfflineEmbed(config.host, config.port)).catch(err => {
+    log(`Error sending offline webhook: ${err.message}`, 'ERROR');
+  });
 });
 
 // Keep the bot running for approximately 1 minute

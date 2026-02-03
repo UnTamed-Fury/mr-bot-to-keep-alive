@@ -19,7 +19,7 @@ This bot connects to your Minecraft server periodically (every 4 minutes) for 1 
 The bot can be configured using environment variables:
 
 - `MINECRAFT_HOST`: Server hostname (default: Furyisthehost.play.hosting)
-- `MINECRAFT_PORT`: Server port (default: 25565)
+- `MINECRAFT_PORT`: Server port (default: 50213)
 - `MINECRAFT_USERNAME`: Bot username (default: Mr_alive)
 - `MINECRAFT_VERSION`: Minecraft version (default: 1.21.1)
 

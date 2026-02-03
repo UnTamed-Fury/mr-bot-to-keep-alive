@@ -5,7 +5,7 @@ const path = require('path');
 // Configuration
 const config = {
   host: process.env.MINECRAFT_HOST || 'Furyisthehost.play.hosting',
-  port: parseInt(process.env.MINECRAFT_PORT) || 25565,
+  port: parseInt(process.env.MINECRAFT_PORT) || 50213,
   username: process.env.MINECRAFT_USERNAME || 'Mr_alive',
   version: process.env.MINECRAFT_VERSION || '1.21.1'
 };

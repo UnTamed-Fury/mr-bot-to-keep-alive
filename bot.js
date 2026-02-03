@@ -15,6 +15,11 @@ const config = {
 
 // Logging function
 function log(message, level = 'INFO') {
+  // Only log DEBUG messages if we're in a debugging context
+  if (level === 'DEBUG' && !process.env.DEBUG) {
+    return;
+  }
+
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] [${level}] ${message}`;
   console.log(logMessage);
@@ -137,15 +142,22 @@ function createOfflineEmbed(serverHost, serverPort) {
 
 // Create bot
 log(`Starting Minecraft bot for server: ${config.host}:${config.port}`, 'INFO');
+log(`Using username: ${config.username}, version: ${config.version}`, 'INFO');
 
-const bot = mineflayer.createBot({
+const botOptions = {
   host: config.host,
   port: config.port,
   username: config.username,
   version: config.version,
-  // Additional options to appear more human-like
-  auth: 'offline' // For offline/cracked servers
-});
+  auth: 'offline', // For offline/cracked servers
+  // Additional options to improve connection reliability
+  timeout: 30000, // 30 second timeout
+  // Enable verbose logging for connection issues
+  hideErrors: false
+};
+
+log(`Attempting to connect with options: host=${config.host}, port=${config.port}, username=${config.username}`, 'DEBUG');
+const bot = mineflayer.createBot(botOptions);
 
 // Bot event handlers
 bot.on('spawn', () => {

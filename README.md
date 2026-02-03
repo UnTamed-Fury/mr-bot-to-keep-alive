@@ -31,9 +31,11 @@ To use this bot with GitHub Actions, set up the following secrets in your reposi
 
 - `MINECRAFT_HOST`
 - `MINECRAFT_PORT`
-- `MINECRAFT_USERNAME`
-- `MINECRAFT_VERSION`
 - `DISCORD_WEBHOOK_URL` (optional, defaults to the provided webhook URL)
+
+The username and Minecraft version are configured in the code with these defaults:
+- Username: Mr_alive
+- Minecraft Version: 1.21.1
 
 ## Logs
 

@@ -28,8 +28,6 @@ jobs:
       env:
         MINECRAFT_HOST: ${{ secrets.MINECRAFT_HOST }}
         MINECRAFT_PORT: ${{ secrets.MINECRAFT_PORT }}
-        MINECRAFT_USERNAME: ${{ secrets.MINECRAFT_USERNAME }}
-        MINECRAFT_VERSION: ${{ secrets.MINECRAFT_VERSION }}
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
     - name: Upload logs

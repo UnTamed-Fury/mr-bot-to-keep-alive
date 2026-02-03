@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const { URL } = require('url');
+const net = require('net');
 
 // Configuration
 const config = {
@@ -19,17 +20,17 @@ function log(message, level = 'INFO') {
   if (level === 'DEBUG' && !process.env.DEBUG) {
     return;
   }
-
+  
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] [${level}] ${message}`;
   console.log(logMessage);
-
+  
   // Write to log file
   const logDir = path.join(__dirname, 'logs');
   if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir, { recursive: true });
   }
-
+  
   const logFile = path.join(logDir, `${new Date().toISOString().split('T')[0]}.log`);
   fs.appendFileSync(logFile, logMessage + '\n');
 }
@@ -44,7 +45,7 @@ function sendWebhook(embed) {
       };
 
       const webhookUrl = new URL(config.webhookUrl);
-
+      
       const options = {
         hostname: webhookUrl.hostname,
         port: 443,
@@ -58,11 +59,11 @@ function sendWebhook(embed) {
 
       const req = https.request(options, (res) => {
         let data = '';
-
+        
         res.on('data', (chunk) => {
           data += chunk;
         });
-
+        
         res.on('end', () => {
           if (res.statusCode >= 200 && res.statusCode < 300) {
             log('Discord webhook sent successfully', 'INFO');
@@ -140,92 +141,141 @@ function createOfflineEmbed(serverHost, serverPort) {
   };
 }
 
-// Create bot
-log(`Starting Minecraft bot for server: ${config.host}:${config.port}`, 'INFO');
-log(`Using username: ${config.username}, version: ${config.version}`, 'INFO');
+// Function to test if server is reachable before attempting Minecraft connection
+function testServerReachable(host, port) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    
+    socket.setTimeout(10000); // 10 second timeout
+    
+    socket.connect(port, host, () => {
+      socket.end();
+      resolve(true);
+    });
+    
+    socket.on('error', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
+  });
+}
 
-const botOptions = {
-  host: config.host,
-  port: config.port,
-  username: config.username,
-  version: config.version,
-  auth: 'offline', // For offline/cracked servers
-  // Additional options to improve connection reliability
-  timeout: 30000, // 30 second timeout
-  // Enable verbose logging for connection issues
-  hideErrors: false
-};
+// Test server reachability before connecting
+log(`Testing server reachability: ${config.host}:${config.port}`, 'INFO');
+testServerReachable(config.host, config.port).then(isReachable => {
+  if (!isReachable) {
+    log(`Server ${config.host}:${config.port} is not reachable`, 'ERROR');
+    // Send offline notification to Discord
+    sendWebhook(createOfflineEmbed(config.host, config.port))
+      .then(() => {
+        // Exit after a delay to allow webhook to send
+        setTimeout(() => process.exit(1), 2000);
+      })
+      .catch(err => {
+        log(`Error sending offline webhook: ${err.message}`, 'ERROR');
+        process.exit(1);
+      });
+    return;
+  }
+  
+  log(`Server ${config.host}:${config.port} is reachable, proceeding with connection`, 'INFO');
+  
+  // Create bot
+  log(`Starting Minecraft bot for server: ${config.host}:${config.port}`, 'INFO');
+  log(`Using username: ${config.username}, version: ${config.version}`, 'INFO');
 
-log(`Attempting to connect with options: host=${config.host}, port=${config.port}, username=${config.username}`, 'DEBUG');
-const bot = mineflayer.createBot(botOptions);
+  const botOptions = {
+    host: config.host,
+    port: config.port,
+    username: config.username,
+    version: config.version,
+    auth: 'offline', // For offline/cracked servers
+    // Additional options to improve connection reliability
+    timeout: 30000, // 30 second timeout
+    // Enable verbose logging for connection issues
+    hideErrors: false
+  };
 
-// Bot event handlers
-bot.on('spawn', () => {
-  log('Bot spawned successfully', 'SUCCESS');
-
-  // Send join notification to Discord
-  sendWebhook(createJoinEmbed(config.username)).catch(err => {
-    log(`Error sending join webhook: ${err.message}`, 'ERROR');
+  log(`Attempting to connect with options: host=${config.host}, port=${config.port}, username=${config.username}`, 'DEBUG');
+  const bot = mineflayer.createBot(botOptions);
+  
+  // Bot event handlers
+  bot.on('spawn', () => {
+    log('Bot spawned successfully', 'SUCCESS');
+    
+    // Send join notification to Discord
+    sendWebhook(createJoinEmbed(config.username)).catch(err => {
+      log(`Error sending join webhook: ${err.message}`, 'ERROR');
+    });
+    
+    // Move the bot slightly to appear active
+    bot.setControlState('forward', true);
+    setTimeout(() => {
+      bot.setControlState('forward', false);
+    }, 2000);
   });
 
-  // Move the bot slightly to appear active
-  bot.setControlState('forward', true);
+  bot.on('chat', (username, message) => {
+    if (username === bot.username) return;
+    log(`Chat received from ${username}: ${message}`, 'CHAT');
+  });
+
+  bot.on('playerJoined', (player) => {
+    log(`${player.username} joined the game`, 'INFO');
+    sendWebhook(createJoinEmbed(player.username)).catch(err => {
+      log(`Error sending join webhook: ${err.message}`, 'ERROR');
+    });
+  });
+
+  bot.on('playerLeft', (player) => {
+    log(`${player.username} left the game`, 'INFO');
+    sendWebhook(createLeaveEmbed(player.username)).catch(err => {
+      log(`Error sending leave webhook: ${err.message}`, 'ERROR');
+    });
+  });
+
+  bot.on('death', () => {
+    log(`${config.username} died`, 'WARNING');
+    sendWebhook(createDeathEmbed(config.username)).catch(err => {
+      log(`Error sending death webhook: ${err.message}`, 'ERROR');
+    });
+  });
+
+  bot.on('error', (err) => {
+    log(`Bot error: ${err.message}`, 'ERROR');
+  });
+
+  bot.on('end', (reason) => {
+    log(`Bot disconnected: ${reason}`, 'INFO');
+    // Send server offline notification to Discord
+    sendWebhook(createOfflineEmbed(config.host, config.port)).catch(err => {
+      log(`Error sending offline webhook: ${err.message}`, 'ERROR');
+    });
+  });
+
+  bot.on('kicked', (reason) => {
+    log(`Bot kicked: ${reason}`, 'WARNING');
+    // Send server offline notification to Discord
+    sendWebhook(createOfflineEmbed(config.host, config.port)).catch(err => {
+      log(`Error sending offline webhook: ${err.message}`, 'ERROR');
+    });
+  });
+
+  // Keep the bot running for approximately 1 minute
   setTimeout(() => {
-    bot.setControlState('forward', false);
-  }, 2000);
+    log('Session time complete, disconnecting...', 'INFO');
+    bot.quit();
+    process.exit(0);
+  }, 60000); // 60 seconds = 1 minute
+
+  log(`Bot connecting to ${config.host}:${config.port} with username ${config.username}`, 'INFO');
+  
+}).catch(err => {
+  log(`Error testing server reachability: ${err.message}`, 'ERROR');
+  process.exit(1);
 });
-
-bot.on('chat', (username, message) => {
-  if (username === bot.username) return;
-  log(`Chat received from ${username}: ${message}`, 'CHAT');
-});
-
-bot.on('playerJoined', (player) => {
-  log(`${player.username} joined the game`, 'INFO');
-  sendWebhook(createJoinEmbed(player.username)).catch(err => {
-    log(`Error sending join webhook: ${err.message}`, 'ERROR');
-  });
-});
-
-bot.on('playerLeft', (player) => {
-  log(`${player.username} left the game`, 'INFO');
-  sendWebhook(createLeaveEmbed(player.username)).catch(err => {
-    log(`Error sending leave webhook: ${err.message}`, 'ERROR');
-  });
-});
-
-bot.on('death', () => {
-  log(`${config.username} died`, 'WARNING');
-  sendWebhook(createDeathEmbed(config.username)).catch(err => {
-    log(`Error sending death webhook: ${err.message}`, 'ERROR');
-  });
-});
-
-bot.on('error', (err) => {
-  log(`Bot error: ${err.message}`, 'ERROR');
-});
-
-bot.on('end', (reason) => {
-  log(`Bot disconnected: ${reason}`, 'INFO');
-  // Send server offline notification to Discord
-  sendWebhook(createOfflineEmbed(config.host, config.port)).catch(err => {
-    log(`Error sending offline webhook: ${err.message}`, 'ERROR');
-  });
-});
-
-bot.on('kicked', (reason) => {
-  log(`Bot kicked: ${reason}`, 'WARNING');
-  // Send server offline notification to Discord
-  sendWebhook(createOfflineEmbed(config.host, config.port)).catch(err => {
-    log(`Error sending offline webhook: ${err.message}`, 'ERROR');
-  });
-});
-
-// Keep the bot running for approximately 1 minute
-setTimeout(() => {
-  log('Session time complete, disconnecting...', 'INFO');
-  bot.quit();
-  process.exit(0);
-}, 60000); // 60 seconds = 1 minute
-
-log(`Bot connecting to ${config.host}:${config.port} with username ${config.username}`, 'INFO');

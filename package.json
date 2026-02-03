@@ -18,7 +18,8 @@
   "license": "MIT",
   "dependencies": {
     "mineflayer": "^4.20.0",
-    "prismarine-viewer": "^1.24.0"
+    "prismarine-viewer": "^1.24.0",
+    "undici": "^5.28.4"
   },
   "engines": {
     "node": ">=14.0.0"
